@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physical Chemistry Interactive Explorer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* Custom Scrollbar for clean look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f5f5f4; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d6d3d1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a29e; 
+        }
+        
+        /* Chart Container Utilities */
+        .chart-wrapper {
+            position: relative;
+            width: 100%;
+            height: 300px; /* Base height for mobile */
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        @media (min-width: 640px) { /* sm breakpoint */
+            .chart-wrapper {
+                height: 350px;
+            }
+        }
+        @media (min-width: 1024px) { /* lg breakpoint */
+            .chart-wrapper {
+                max-width: 600px;
+                height: 380px;
+            }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .canvas-drawing {
+            border: 1px solid #e7e5e4;
+            background-color: #ffffff;
+            border-radius: 0.5rem;
+            width: 100%;
+            height: 250px;
+            max-width: 100%;
+        }
+    </style>
+    
+    <!-- Chosen Palette: Warm Neutrals (Stone) with Teal Accents -->
+    <!-- Application Structure Plan: 
+         - Top Navigation: Tab-based system for the 5 main report sections (Solutions, Electrochemistry, Colloids, Adsorption, Equilibrium). Fully horizontal scrollable on mobile.
+         - Main Content Area: Dynamic injection of content based on active tab.
+         - Layout: Single-column on mobile/tablet, switching to a Two-column grid (Concept/Text vs. Interaction/Visual) on desktop (lg breakpoint) for efficiency.
+         - Interactions: Sliders, Input fields, and Toggle buttons that directly update Charts or DOM elements.
+         - Rationale: The subject matter is conceptual and formulaic. Splitting by topic reduces cognitive load. 
+           Coupling text definitions immediately with a calculator or graph reinforces the "Physical" aspect of the chemistry. Mobile experience prioritizes vertical flow.
+    -->
+    
+    <!-- Visualization & Content Choices:
+         1. Henry's Law (Solutions): Line Chart. Goal: Inform/Change. Interaction: Slider for K (slope). Justification: Shows linear relationship directly.
+         2. Electrolysis (Electrochemistry): Calculator + Logic. Goal: Inform. Interaction: Input Amps/Time. Justification: Practical application of Faraday's formulas.
+         3. Daniell Cell (Electrochemistry): Canvas Drawing. Goal: Organize/Inform. Interaction: Static Schematic. Justification: Canvas allows drawing specific beaker/bridge setup without SVG.
+         4. Brownian Motion (Colloids): Canvas Animation. Goal: Inform. Interaction: None (Auto-play). Justification: Best way to explain "zig-zag movement".
+         5. Langmuir Isotherm (Adsorption): Scatter/Line Chart. Goal: Relationships. Interaction: Sliders for constants. Justification: Visualizes the saturation curve effectively.
+         6. Le Chatelier (Equilibrium): Bar Chart. Goal: Change. Interaction: Buttons to add stress. Justification: Visualizing the "shift" in balance is intuitive with bars.
+    -->
+    
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+</head>
+<body class="bg-stone-50 text-stone-800 font-sans leading-relaxed selection:bg-teal-200 selection:text-teal-900">
+
+    <!-- App Container -->
+    <div id="app" class="max-w-7xl mx-auto min-h-screen flex flex-col">
+        
+        <!-- Header -->
+        <header class="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
+            <div class="px-4 py-4 md:px-8 flex flex-col md:flex-row justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold text-stone-900 tracking-tight">PhysChem<span class="text-teal-600">Review</span></h1>
+                    <p class="text-xs text-stone-500 mt-1">Interactive Study Companion for Physical Chemistry</p>
+                </div>
+                <!-- Navigation (Responsive Horizontal Scroll) -->
+                <nav class="mt-4 md:mt-0 w-full md:w-auto pb-2 md:pb-0 overflow-x-scroll no-scrollbar">
+                    <ul class="flex space-x-2 md:space-x-4 min-w-max" id="nav-container">
+                        <!-- Nav Items injected by JS -->
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main id="main-content" class="flex-grow p-4 md:p-8 fade-in">
+            <!-- Dynamic Content Loaded Here -->
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-stone-100 border-t border-stone-200 py-6 text-center text-sm text-stone-500">
+            <p>Generated based on Physical Chemistry Notes &bull; Interactive Learning Module</p>
+        </footer>
+
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- Data & Content Store ---
+        const contentData = {
+            solutions: {
+                title: "Solutions & Solubility",
+                intro: "A solution is a homogeneous mixture where composition varies. This section explores how gases dissolve in liquids (Henry's Law), how we measure concentration, and how ideal vs. non-ideal liquid mixtures behave.",
+                sections: [
+                    {
+                        type: 'concepts',
+                        title: 'Types & Concentration',
+                        content: `
+                            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div class="bg-white p-6 rounded-lg shadow-sm border border-stone-100">
+                                    <h3 class="font-bold text-lg mb-3 text-teal-700">Concentration Units</h3>
+                                    <ul class="space-y-3 text-sm">
+                                        <li class="flex justify-between border-b pb-2">
+                                            <span class="font-medium">Molarity (M)</span>
+                                            <span>Moles solute / 1L Solution</span>
+                                        </li>
+                                        <li class="flex justify-between border-b pb-2">
+                                            <span class="font-medium">Molality (m)</span>
+                                            <span>Moles solute / 1kg Solvent</span>
+                                        </li>
+                                    </ul>
+                                    <div class="mt-4 bg-stone-50 p-4 rounded border border-stone-200">
+                                        <h4 class="font-bold text-xs uppercase tracking-wider text-stone-500 mb-2">Calculator: Urea Example</h4>
+                                        <p class="text-xs mb-3">Calculate Molarity for Urea (MW: 60g/mol).</p>
+                                        <div class="flex gap-2 items-center mb-2">
+                                            <input type="number" id="urea-mass" value="60" class="w-20 p-1 border rounded text-sm" placeholder="Mass (g)">
+                                            <span class="text-xs">g dissolved in 1L</span>
+                                        </div>
+                                        <button onclick="calculateMolarity()" class="bg-teal-600 text-white px-3 py-1 rounded text-xs hover:bg-teal-700 transition">Calculate</button>
+                                        <p id="molarity-result" class="mt-2 font-bold text-teal-700 text-sm">Result: 1.0 M</p>
+                                    </div>
+                                </div>
+                                <div class="bg-white p-6 rounded-lg shadow-sm border border-stone-100">
+                                    <h3 class="font-bold text-lg mb-3 text-teal-700">Liquid-Liquid Solutions</h3>
+                                    <div class="space-y-3 text-sm">
+                                        <div class="p-3 bg-green-50 rounded border-l-4 border-green-400">
+                                            <span class="font-bold block">Ideal Solution</span>
+                                            No heat absorbed/released (ΔH_mix = 0).
+                                        </div>
+                                        <div class="p-3 bg-orange-50 rounded border-l-4 border-orange-400">
+                                            <span class="font-bold block">Exothermic (Warm)</span>
+                                            Heat released (e.g., Acetone + Water).
+                                        </div>
+                                        <div class="p-3 bg-blue-50 rounded border-l-4 border-blue-400">
+                                            <span class="font-bold block">Endothermic (Cool)</span>
+                                            Heat absorbed (e.g., Hexane + Ethanol).
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `
+                    },
+                    {
+                        type: 'interactive',
+                        title: "Henry's Law Simulation",
+                        description: "The amount of gas (w) dissolved is proportional to pressure (p). The constant (k) changes the slope. Adjust the constant (k) to see the effect on solubility at different pressures.",
+                        formulaText: "Formula: w = k × p",
+                        controlLabel: "Henry's Constant (k)",
+                        min: 0.1, max: 2, val: 1, step: 0.1,
+                        chartId: 'henryChart'
+                    }
+                ]
+            },
+            electro: {
+                title: "Electrochemistry",
+                intro: "Electrochemistry studies the relationship between chemical changes and electricity. From conducting ions in electrolytes to the mechanics of the Daniell Cell and Faraday's laws of deposition.",
+                sections: [
+                    {
+                        type: 'split',
+                        title: "Electrolysis & Faraday's Law",
+                        leftContent: `
+                            <h3 class="font-bold text-lg text-teal-700 mb-2">First Law of Electrolysis</h3>
+                            <p class="text-sm mb-4">Mass deposited (m) is proportional to charge (Q).</p>
+                            <div class="bg-stone-100 p-4 rounded-lg font-mono text-sm mb-4">
+                                m = Z × I × t 
+                                <span class="block text-xs text-stone-500 mt-1">(Z: Electrochemical equivalent, I: Current, t: Time)</span>
+                            </div>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-stone-500 mb-1">Current (I) in Amperes</label>
+                                    <input type="range" id="amp-slider" min="1" max="20" value="5" class="w-full accent-teal-600">
+                                    <div class="text-right text-xs font-bold" id="amp-val">5 A</div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold uppercase text-stone-500 mb-1">Time (t) in Seconds</label>
+                                    <input type="range" id="time-slider" min="10" max="3600" value="60" class="w-full accent-teal-600">
+                                    <div class="text-right text-xs font-bold" id="time-val">60 s</div>
+                                </div>
+                                <div class="bg-white border border-teal-200 p-3 rounded text-center">
+                                    <span class="block text-xs text-stone-500">Mass Deposited (Arbitrary Z=1)</span>
+                                    <span class="text-2xl font-bold text-teal-700" id="mass-result">300 units</span>
+                                </div>
+                            </div>
+                        `,
+                        rightContent: `
+                            <h3 class="font-bold text-lg text-teal-700 mb-2">Conductance Terms</h3>
+                            <div class="grid grid-cols-1 gap-3 text-sm">
+                                <div class="border p-3 rounded hover:bg-stone-50 transition">
+                                    <div class="font-bold">Specific Conductance (κ)</div>
+                                    <div class="text-stone-500 text-xs">Reciprocal of specific resistance. Unit: ohm⁻¹ cm⁻¹</div>
+                                </div>
+                                <div class="border p-3 rounded hover:bg-stone-50 transition">
+                                    <div class="font-bold">Molar Conductance (Λm)</div>
+                                    <div class="text-stone-500 text-xs">Conductance of 1 mole in Volume V. Formula: Λm = κ × V</div>
+                                </div>
+                                <div class="border p-3 rounded hover:bg-stone-50 transition">
+                                    <div class="font-bold">Ionic Mobility</div>
+                                    <div class="text-stone-500 text-xs">Speed under potential gradient. Formula: Ionic Cond. / 96,500</div>
+                                </div>
+                            </div>
+                        `
+                    },
+                    {
+                        type: 'canvas-viz',
+                        title: "The Daniell Cell Schematic",
+                        description: "A graphical representation of the Zn-Cu electrochemical cell, showing the anode, cathode, and salt bridge functions.",
+                        canvasId: 'daniellCanvas',
+                        drawFunction: 'drawDaniellCell'
+                    }
+                ]
+            },
+            colloids: {
+                title: "The Colloids",
+                intro: "Colloids are mixtures with particle sizes between true solutions and suspensions (10Å - 2000Å). This section visualizes their unique properties like Brownian movement and methods of preparation.",
+                sections: [
+                    {
+                        type: 'concepts',
+                        title: 'Classification & Properties',
+                        content: `
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                                <div class="bg-white border p-4 rounded text-center">
+                                    <div class="text-3xl mb-2">💧</div>
+                                    <h4 class="font-bold">True Solution</h4>
+                                    <p class="text-xs text-stone-500">&lt; 10 Å (invisible)</p>
+                                    <p class="text-xs mt-1">Salt in Water</p>
+                                </div>
+                                <div class="bg-teal-50 border border-teal-200 p-4 rounded text-center transform scale-105 shadow-sm">
+                                    <div class="text-3xl mb-2">🥛</div>
+                                    <h4 class="font-bold text-teal-800">Colloid</h4>
+                                    <p class="text-xs text-teal-600">10 Å - 2000 Å</p>
+                                    <p class="text-xs mt-1">Milk, Starch</p>
+                                </div>
+                                <div class="bg-white border p-4 rounded text-center">
+                                    <div class="text-3xl mb-2">🏖️</div>
+                                    <h4 class="font-bold">Suspension</h4>
+                                    <p class="text-xs text-stone-500">&gt; 2000 Å (settles)</p>
+                                    <p class="text-xs mt-1">Sand in Water</p>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg shadow-sm border p-6">
+                                <h3 class="font-bold text-lg mb-4 text-teal-700">Lyophilic vs. Lyophobic</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full text-sm text-left text-stone-600">
+                                        <thead class="text-xs text-stone-700 uppercase bg-stone-100">
+                                            <tr>
+                                                <th class="px-4 py-2">Feature</th>
+                                                <th class="px-4 py-2 text-teal-700">Lyophilic (Loving)</th>
+                                                <th class="px-4 py-2 text-orange-700">Lyophobic (Hating)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr class="border-b">
+                                                <td class="px-4 py-2 font-medium">Preparation</td>
+                                                <td class="px-4 py-2">Direct Mixing</td>
+                                                <td class="px-4 py-2">Special Methods</td>
+                                            </tr>
+                                            <tr class="border-b">
+                                                <td class="px-4 py-2 font-medium">Charge</td>
+                                                <td class="px-4 py-2">Little/None</td>
+                                                <td class="px-4 py-2">Positive/Negative</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="px-4 py-2 font-medium">Tyndall Effect</td>
+                                                <td class="px-4 py-2">No (or faint)</td>
+                                                <td class="px-4 py-2">Yes (visible light scattering)</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        `
+                    },
+                    {
+                        type: 'canvas-viz',
+                        title: "Brownian Movement Simulation",
+                        description: "Zig-zag motion of colloidal particles due to bombardment by solvent molecules. This random movement keeps the particles suspended.",
+                        canvasId: 'brownianCanvas',
+                        drawFunction: 'startBrownianAnimation'
+                    }
+                ]
+            },
+            adsorption: {
+                title: "Adsorption",
+                intro: "Adsorption is the accumulation of molecular species at the surface. We explore the Langmuir Isotherm, which models how gas pressure affects surface coverage.",
+                sections: [
+                    {
+                        type: 'interactive',
+                        title: "Langmuir Isotherm",
+                        description: "Visualize surface coverage (θ) as pressure (P) increases. The K constant relates to the strength of adsorption. Adjust K to see how quickly the surface becomes saturated.",
+                        formulaText: "Formula: θ = (K * P) / (1 + K * P)",
+                        controlLabel: "Equilibrium Constant (K)",
+                        min: 0.1, max: 10, val: 1, step: 0.1,
+                        chartId: 'langmuirChart'
+                    },
+                    {
+                        type: 'concepts',
+                        title: 'Types of Adsorption',
+                        content: `
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="border border-stone-200 rounded-lg p-5 hover:shadow-md transition bg-white">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded">Weak</span>
+                                        <h3 class="font-bold text-lg">Physisorption (Physical)</h3>
+                                    </div>
+                                    <p class="text-sm text-stone-600 mb-2">Held by <strong>Van der Waals</strong> forces. Low heat of adsorption, reversible, non-specific, multilayer possible.</p>
+                                    <p class="text-xs text-stone-500">Example: Nitrogen gas on charcoal.</p>
+                                </div>
+                                <div class="border border-stone-200 rounded-lg p-5 hover:shadow-md transition bg-white">
+                                    <div class="flex items-center gap-2 mb-3">
+                                        <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">Strong</span>
+                                        <h3 class="font-bold text-lg">Chemisorption (Chemical)</h3>
+                                    </div>
+                                    <p class="text-sm text-stone-600 mb-2">Held by <strong>Chemical Bonds</strong>. High heat of adsorption, irreversible, highly specific, monolayer only.</p>
+                                    <p class="text-xs text-stone-500">Example: Hydrogen on Nickel.</p>
+                                </div>
+                            </div>
+                        `
+                    }
+                ]
+            },
+            equilibrium: {
+                title: "Chemical Equilibrium",
+                intro: "Reversible reactions reach a state where forward and reverse rates are equal. Le Chatelier's Principle helps us predict how the system responds to a disturbance (stress) to restore balance.",
+                sections: [
+                    {
+                        type: 'interactive-custom',
+                        title: "Le Chatelier's Principle Simulator",
+                        customId: 'leChatelier',
+                        content: `
+                             <div class="bg-white p-6 rounded-lg shadow-sm border border-stone-100">
+                                <div class="mb-4 text-center">
+                                    <code class="bg-stone-100 px-2 py-1 rounded text-sm">N₂(g) + 3H₂(g) ⇌ 2NH₃(g) + Heat</code>
+                                </div>
+                                
+                                <div class="flex flex-col lg:flex-row gap-8 items-start justify-center">
+                                    <!-- Controls -->
+                                    <div class="space-y-3 w-full lg:w-1/3">
+                                        <p class="text-xs font-bold text-stone-500 uppercase">Apply Stress</p>
+                                        <button onclick="updateEquilibrium('add_reactant')" class="w-full text-left px-4 py-2 bg-stone-50 hover:bg-teal-50 border rounded text-sm transition flex justify-between items-center">
+                                            <span>Add N₂ (Reactant)</span>
+                                            <span class="text-teal-600 font-bold">→ Shift Right</span>
+                                        </button>
+                                        <button onclick="updateEquilibrium('add_heat')" class="w-full text-left px-4 py-2 bg-stone-50 hover:bg-red-50 border rounded text-sm transition flex justify-between items-center">
+                                            <span>Increase Temp (Heat)</span>
+                                            <span class="text-red-600 font-bold">← Shift Left</span>
+                                        </button>
+                                        <button onclick="updateEquilibrium('increase_pressure')" class="w-full text-left px-4 py-2 bg-stone-50 hover:bg-blue-50 border rounded text-sm transition flex justify-between items-center">
+                                            <span>Increase Pressure</span>
+                                            <span class="text-blue-600 font-bold">→ Shift Right</span>
+                                        </button>
+                                        <button onclick="resetEquilibrium()" class="w-full text-center px-4 py-2 text-xs text-stone-400 hover:text-stone-600 underline">
+                                            Reset System
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Visualization -->
+                                    <div class="w-full lg:w-2/3 chart-wrapper" style="height: 250px;">
+                                        <canvas id="equilibriumChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="mt-4 text-xs text-stone-500 bg-stone-50 p-3 rounded">
+                                    <strong>Insight:</strong> Increasing pressure shifts equilibrium to the side with fewer gas moles (Products: 2 moles vs Reactants: 4 moles). Adding heat to an exothermic reaction shifts it left, consuming the extra heat.
+                                </div>
+                             </div>
+                        `
+                    }
+                ]
+            }
+        };
+
+        // --- App State ---
+        let currentTab = 'solutions';
+        let charts = {}; // Store chart instances
+        let animationFrameId = null; // For canceling canvas animations
+
+        // --- Core Functions ---
+
+        function init() {
+            // Add a style rule to hide the scrollbar on the nav for aesthetic reasons, while keeping functionality
+            const style = document.createElement('style');
+            style.innerHTML = '.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }';
+            document.head.appendChild(style);
+
+            renderNav();
+            renderContent(currentTab);
+        }
+
+        function renderNav() {
+            const navContainer = document.getElementById('nav-container');
+            const tabs = Object.keys(contentData);
+            
+            navContainer.innerHTML = tabs.map(tab => `
+                <li class="cursor-pointer px-4 py-2 rounded-full text-sm font-medium transition whitespace-nowrap ${currentTab === tab ? 'bg-teal-600 text-white shadow-md' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'}"
+                    onclick="switchTab('${tab}')">
+                    ${contentData[tab].title}
+                </li>
+            `).join('');
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            // Cleanup previous animations
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            renderNav();
+            renderContent(tab);
+        }
+
+        function renderContent(tabKey) {
+            const main = document.getElementById('main-content');
+            const data = contentData[tabKey];
+            
+            let html = `
+                <div class="mb-8">
+                    <h2 class="text-3xl font-bold text-stone-800 mb-2">${data.title}</h2>
+                    <p class="text-stone-600 max-w-3xl leading-relaxed">${data.intro}</p>
+                </div>
+                <div class="space-y-8">
+            `;
+
+            data.sections.forEach(section => {
+                const isInteractive = section.type === 'interactive';
+                const vizContentClass = isInteractive ? 'col-span-1 lg:col-span-2' : 'w-full md:w-2/3';
+
+                html += `
+                    <section class="bg-white rounded-xl shadow-lg border border-stone-200 overflow-hidden">
+                        <div class="p-4 border-b border-stone-100 bg-stone-50 flex justify-between items-center">
+                            <h3 class="font-bold text-lg text-teal-800">${section.title}</h3>
+                        </div>
+                        <div class="p-6">
+                `;
+                
+                if (section.type === 'concepts') {
+                    html += section.content;
+                } else if (isInteractive) {
+                    html += `
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div class="col-span-1 space-y-4">
+                                <p class="text-sm text-stone-600">${section.description}</p>
+                                <div class="text-center bg-stone-100 p-2 rounded text-sm font-mono text-stone-700">${section.formulaText || ''}</div>
+                                <div class="pt-4">
+                                    <label class="block text-xs font-bold uppercase text-stone-500 mb-2">${section.controlLabel}</label>
+                                    <input type="range" 
+                                           min="${section.min}" max="${section.max}" step="${section.step || 1}" value="${section.val}" 
+                                           class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                                           oninput="updateChart('${section.chartId}', this.value)">
+                                    <div class="flex justify-between text-xs text-stone-400 mt-1">
+                                        <span>Min</span>
+                                        <span class="font-bold text-teal-600" id="${section.chartId}-val">${section.val}</span>
+                                        <span>Max</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="${vizContentClass}">
+                                <div class="chart-wrapper">
+                                    <canvas id="${section.chartId}"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else if (section.type === 'canvas-viz') {
+                    html += `
+                        <div class="flex flex-col md:flex-row gap-6 items-center">
+                            <div class="w-full md:w-1/3">
+                                <h3 class="font-bold text-lg text-teal-800 mb-2 hidden md:block">${section.title}</h3>
+                                <p class="text-sm text-stone-600">${section.description}</p>
+                            </div>
+                            <div class="${vizContentClass}">
+                                <canvas id="${section.canvasId}" class="canvas-drawing"></canvas>
+                            </div>
+                        </div>
+                    `;
+                } else if (section.type === 'interactive-custom') {
+                    // Custom content takes care of its own layout (Le Chatelier)
+                    html += section.content;
+                }
+
+                html += `
+                        </div>
+                    </section>
+                `;
+            });
+
+            html += `</div>`;
+            main.innerHTML = html;
+
+            // Initialize visual elements after DOM injection
+            setTimeout(() => {
+                data.sections.forEach(section => {
+                    if (section.type === 'interactive') {
+                        initChart(section.chartId, section.val);
+                    } else if (section.type === 'split' && tabKey === 'electro') {
+                        initElectroCalculator();
+                    } else if (section.type === 'canvas-viz') {
+                        // Ensure cleanup before starting new animation/draw
+                        if (section.canvasId === 'brownianCanvas' && animationFrameId) {
+                            cancelAnimationFrame(animationFrameId);
+                            animationFrameId = null;
+                        }
+                        if (window[section.drawFunction]) window[section.drawFunction](section.canvasId);
+                    } else if (section.type === 'interactive-custom' && section.customId === 'leChatelier') {
+                        initEquilibriumChart();
+                    }
+                });
+            }, 50);
+        }
+
+        // --- Logic: Solutions ---
+        
+        function calculateMolarity() {
+            const mass = parseFloat(document.getElementById('urea-mass').value) || 0;
+            const mw = 60; // Urea
+            const moles = mass / mw;
+            // Assuming 1L for simplicity as per note example
+            const result = moles.toFixed(2);
+            document.getElementById('molarity-result').innerText = `Result: ${result} M (approx)`;
+        }
+
+        // --- Logic: Charts (Henry's & Langmuir) ---
+
+        function initChart(id, initialVal) {
+            const ctx = document.getElementById(id);
+            if (!ctx) return;
+            
+            const chartConfig = {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { 
+                        y: { beginAtZero: true }, 
+                        x: { }
+                    }
+                }
+            };
+            
+            let dataLabels = [];
+            let chartTitle = '';
+
+            if (id === 'henryChart') {
+                // Henry's Law: w = kp. Slider controls k.
+                dataLabels = [0, 2, 4, 6, 8, 10]; // Pressure (P)
+                chartTitle = "Solubility (w) vs Pressure (P)";
+                chartConfig.data = {
+                    labels: dataLabels,
+                    datasets: [{
+                        label: 'Solubility (w)',
+                        data: dataLabels.map(p => p * parseFloat(initialVal)),
+                        borderColor: '#0d9488',
+                        backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                        fill: true,
+                        tension: 0.1
+                    }]
+                };
+                chartConfig.options.plugins.title = { display: true, text: chartTitle };
+                chartConfig.options.scales.y.title = {display: true, text: 'Mass (w)'};
+                chartConfig.options.scales.x.title = {display: true, text: 'Pressure (P)'};
+
+            } else if (id === 'langmuirChart') {
+                // Langmuir: theta = KP / (1+KP). Slider controls K.
+                dataLabels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; // Pressure (P)
+                chartTitle = "Surface Coverage (θ) vs Pressure (P)";
+                chartConfig.data = {
+                    labels: dataLabels,
+                    datasets: [{
+                        label: 'Surface Coverage (θ)',
+                        data: generateLangmuirData(parseFloat(initialVal)),
+                        borderColor: '#0d9488',
+                        tension: 0.4
+                    }]
+                };
+                chartConfig.options.plugins.title = { display: true, text: chartTitle };
+                chartConfig.options.scales.y.min = 0;
+                chartConfig.options.scales.y.max = 1.1;
+                chartConfig.options.scales.y.title = {display: true, text: 'Fraction Covered (θ)'};
+                chartConfig.options.scales.x.title = {display: true, text: 'Pressure (P)'};
+            }
+
+            if (charts[id]) charts[id].destroy();
+            charts[id] = new Chart(ctx, chartConfig);
+        }
+
+        function updateChart(id, val) {
+            const K = parseFloat(val);
+            // Update value label
+            const label = document.getElementById(`${id}-val`);
+            if(label) label.innerText = K.toFixed(1);
+
+            const chart = charts[id];
+            if (!chart) return;
+
+            if (id === 'henryChart') {
+                // w = K * P
+                chart.data.datasets[0].data = chart.data.labels.map(p => p * K);
+            } else if (id === 'langmuirChart') {
+                // theta = KP / (1+KP)
+                chart.data.datasets[0].data = generateLangmuirData(K);
+            }
+            chart.update();
+        }
+
+        function generateLangmuirData(K) {
+            const P = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+            return P.map(p => (K * p) / (1 + K * p));
+        }
+
+        // --- Logic: Electrochemistry ---
+
+        function initElectroCalculator() {
+            const ampSlider = document.getElementById('amp-slider');
+            const timeSlider = document.getElementById('time-slider');
+            
+            const updateMass = () => {
+                const I = parseFloat(ampSlider.value);
+                const t = parseFloat(timeSlider.value);
+                document.getElementById('amp-val').innerText = `${I} A`;
+                document.getElementById('time-val').innerText = `${t} s`;
+                // m = ZIt. Assume Z = 1 for simplicity/demo
+                const mass = (1 * I * t).toLocaleString(); 
+                document.getElementById('mass-result').innerText = `${mass} units`;
+            };
+
+            if(ampSlider && timeSlider) {
+                ampSlider.addEventListener('input', updateMass);
+                timeSlider.addEventListener('input', updateMass);
+                updateMass(); // Initial calculation
+            }
+        }
+
+        function drawDaniellCell(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            // Set resolution based on responsive size
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Calculate responsive coordinates
+            const marginX = w * 0.1;
+            const beakerWidth = w * 0.3;
+            const liquidLevel = h * 0.7;
+            const electrodeHeight = h * 0.5;
+            const electrodeWidth = w * 0.05;
+            const bridgeHeight = h * 0.35;
+            const bridgeArc = 15;
+            
+            const znX = marginX;
+            const cuX = w - marginX - beakerWidth;
+            const znElectrodeX = znX + beakerWidth / 2 - electrodeWidth / 2;
+            const cuElectrodeX = cuX + beakerWidth / 2 - electrodeWidth / 2;
+
+            // Beaker 1 (Left - Zn)
+            ctx.fillStyle = '#e0f2fe'; 
+            ctx.fillRect(znX, liquidLevel - electrodeHeight, beakerWidth, electrodeHeight);
+            ctx.strokeStyle = '#374151';
+            ctx.strokeRect(znX, liquidLevel - electrodeHeight, beakerWidth, electrodeHeight); 
+            
+            // Electrode Zn
+            ctx.fillStyle = '#94a3b8'; 
+            ctx.fillRect(znElectrodeX, h * 0.1, electrodeWidth, electrodeHeight); 
+            ctx.fillStyle = '#000';
+            ctx.font = '10px sans-serif';
+            ctx.fillText('Zn (Anode)', znElectrodeX - 10, h * 0.08);
+
+            // Beaker 2 (Right - Cu)
+            ctx.fillStyle = '#bfdbfe'; 
+            ctx.fillRect(cuX, liquidLevel - electrodeHeight, beakerWidth, electrodeHeight);
+            ctx.strokeRect(cuX, liquidLevel - electrodeHeight, beakerWidth, electrodeHeight);
+
+            // Electrode Cu
+            ctx.fillStyle = '#b45309'; 
+            ctx.fillRect(cuElectrodeX, h * 0.1, electrodeWidth, electrodeHeight);
+            ctx.fillText('Cu (Cathode)', cuElectrodeX - 10, h * 0.08);
+
+            // Salt Bridge
+            ctx.beginPath();
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 15;
+            ctx.lineCap = 'round';
+            ctx.moveTo(znX + beakerWidth/2, liquidLevel - electrodeHeight); 
+            ctx.lineTo(znX + beakerWidth/2, bridgeHeight); 
+            ctx.lineTo(cuX + beakerWidth/2, bridgeHeight); 
+            ctx.lineTo(cuX + beakerWidth/2, liquidLevel - electrodeHeight); 
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = '#000';
+
+            // Wire
+            ctx.beginPath();
+            ctx.moveTo(znElectrodeX + electrodeWidth/2, h * 0.1);
+            ctx.lineTo(znElectrodeX + electrodeWidth/2, h * 0.05);
+            ctx.lineTo(cuElectrodeX + electrodeWidth/2, h * 0.05);
+            ctx.lineTo(cuElectrodeX + electrodeWidth/2, h * 0.1);
+            ctx.stroke();
+
+            // Voltmeter
+            const voltmeterX = w * 0.5;
+            const voltmeterY = h * 0.05;
+            ctx.beginPath();
+            ctx.arc(voltmeterX, voltmeterY, 15, 0, 2*Math.PI);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#000';
+            ctx.fillText('V', voltmeterX - 5, voltmeterY + 3);
+            
+            // Ions text
+            ctx.font = '10px sans-serif';
+            ctx.fillText('Zn²⁺', znX + 5, liquidLevel - 20);
+            ctx.fillText('Cu²⁺', cuX + 5, liquidLevel - 20);
+        }
+
+        // --- Logic: Colloids (Brownian) ---
+        
+        function startBrownianAnimation(canvasId) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            // Set resolution based on responsive size
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Particles
+            let particles = canvas.particles || Array.from({length: 50}, () => ({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 2,
+                vy: (Math.random() - 0.5) * 2,
+                color: Math.random() > 0.5 ? '#0d9488' : '#f59e0b' 
+            }));
+            canvas.particles = particles;
+
+            function animate() {
+                // If the tab switched, stop animation
+                if (currentTab !== 'colloids') {
+                    animationFrameId = null;
+                    return;
+                }
+                
+                // Redraw on current size
+                canvas.width = canvas.offsetWidth;
+                canvas.height = canvas.offsetHeight;
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw solvent background hint
+                ctx.fillStyle = '#fafaf9';
+                ctx.fillRect(0,0,canvas.width, canvas.height);
+
+                particles.forEach(p => {
+                    // Jittery movement (Brownian)
+                    p.vx += (Math.random() - 0.5) * 0.5;
+                    p.vy += (Math.random() - 0.5) * 0.5;
+                    
+                    // Dampening
+                    p.vx *= 0.95;
+                    p.vy *= 0.95;
+
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    // Bounce off walls
+                    if (p.x < 0) { p.x = 0; p.vx *= -1; }
+                    if (p.x > canvas.width) { p.x = canvas.width; p.vx *= -1; }
+                    if (p.y < 0) { p.y = 0; p.vy *= -1; }
+                    if (p.y > canvas.height) { p.y = canvas.height; p.vy *= -1; }
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                    ctx.fillStyle = p.color;
+                    ctx.fill();
+                });
+
+                animationFrameId = requestAnimationFrame(animate);
+            }
+            
+            // Only start if not already running
+            if (!animationFrameId) {
+                animate();
+            }
+        }
+
+        // --- Logic: Equilibrium (Le Chatelier) ---
+        
+        let eqData = { Reactants: 40, Products: 20 }; // Base units, sums of N2+H2 and NH3
+
+        function initEquilibriumChart() {
+            const ctx = document.getElementById('equilibriumChart');
+            if (!ctx) return;
+            
+            charts['eqChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Reactants (N₂ + 3H₂)', 'Products (2NH₃)'],
+                    datasets: [{
+                        label: 'Amount (Moles)',
+                        data: [eqData.Reactants, eqData.Products],
+                        backgroundColor: ['#f87171', '#0d9488']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false }, title: { display: true, text: 'Haber Process Equilibrium Shift' } },
+                    scales: { 
+                        y: { beginAtZero: true, max: 100, title: { display: true, text: 'Relative Amount' } },
+                        x: { }
+                    }
+                }
+            });
+        }
+
+        function updateEquilibrium(action) {
+            const chart = charts['eqChart'];
+            if (!chart) return;
+
+            let shiftReactants = 0;
+            let shiftProducts = 0;
+
+            if (action === 'add_reactant') {
+                // Apply stress (spike reactant), then shift right (convert some back to product)
+                chart.data.datasets[0].data[0] += 20; // Stress
+                chart.update();
+                
+                setTimeout(() => {
+                    shiftReactants = -10;
+                    shiftProducts = 10;
+                    chart.data.datasets[0].data[0] += shiftReactants;
+                    chart.data.datasets[0].data[1] += shiftProducts;
+                    chart.update();
+                }, 800);
+                return;
+
+            } else if (action === 'add_heat') {
+                // Shift left (Endothermic direction)
+                shiftReactants = 10;
+                shiftProducts = -10;
+            } else if (action === 'increase_pressure') {
+                // Shift to lower moles (Product side - Right)
+                shiftReactants = -10;
+                shiftProducts = 10;
+            }
+            
+            chart.data.datasets[0].data[0] += shiftReactants;
+            chart.data.datasets[0].data[1] += shiftProducts;
+            
+            // Clamp data to prevent negative values
+            chart.data.datasets[0].data[0] = Math.max(0, chart.data.datasets[0].data[0]);
+            chart.data.datasets[0].data[1] = Math.max(0, chart.data.datasets[0].data[1]);
+            
+            chart.update();
+        }
+        
+        function resetEquilibrium() {
+            const chart = charts['eqChart'];
+            if (chart) {
+                 chart.data.datasets[0].data = [40, 20];
+                 chart.update();
+            }
+        }
+
+        // Start App
+        init();
+
+    </script>
+</body>
+</html>
